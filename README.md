@@ -17,7 +17,7 @@ This starts Postgres, runs the migrations and seed in a one-off `migrate` servic
 
 ## Running locally
 
-You'll need PostgreSQL and Node 18+.
+You'll need PostgreSQL and Node 22.12+.
 
 ```sh
 cp .env.example .env    # set DATABASE_URL
@@ -33,7 +33,7 @@ In another terminal:
 cd client
 cp .env.example .env.local
 npm install
-npm start               # http://localhost:3001
+npm run dev             # http://localhost:3001
 ```
 
 ## Endpoints
@@ -62,7 +62,7 @@ Main settings (`.env.example`): `DATABASE_URL`, `PORT`, `CORS_ORIGIN`, `SAME_FAC
 
 ```sh
 npm test              # API tests (node:test + supertest)
-npm run test:client   # React tests (Jest + React Testing Library)
+npm run test:client   # React tests (Vitest + React Testing Library)
 npm run lint
 ```
 

@@ -6,14 +6,14 @@ import shiftsService from "./Services/ShiftsService";
 
 // A module factory rather than an automock, so the test states exactly which
 // calls the components are allowed to make.
-jest.mock("./Services/ShiftsService", () => ({
+vi.mock("./Services/ShiftsService", () => ({
   __esModule: true,
   default: {
-    getShifts: jest.fn(),
-    checkOverlap: jest.fn(),
-    getOpenPositions: jest.fn(),
-    getNurseOpportunities: jest.fn(),
-    getColleagues: jest.fn(),
+    getShifts: vi.fn(),
+    checkOverlap: vi.fn(),
+    getOpenPositions: vi.fn(),
+    getNurseOpportunities: vi.fn(),
+    getColleagues: vi.fn(),
   },
 }));
 
@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test("renders the loaded shifts", async () => {

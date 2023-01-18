@@ -10,6 +10,7 @@ module.exports = [
       "node_modules/**",
       "client/node_modules/**",
       "client/build/**",
+      "client/dist/**",
       "coverage/**",
       "docs/**",
     ],
@@ -46,14 +47,14 @@ module.exports = [
   },
   {
     // React client: ES modules in the browser.
-    files: ["client/src/**/*.{js,jsx}"],
+    files: ["client/src/**/*.{js,jsx}", "client/vite.config.js"],
     plugins: { react },
     settings: { react: { version: "detect" } },
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
       parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: { ...globals.browser, ...globals.jest, process: "readonly" },
+      globals: { ...globals.browser, ...globals.vitest },
     },
     rules: {
       // Without these, every component referenced only inside JSX reads as unused.

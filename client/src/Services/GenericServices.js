@@ -1,14 +1,10 @@
 import axios from "axios";
 
 /**
- * Base URL of the API.
- *
- * Read from the environment at module load so the same build can point at a
- * local server or a deployed one. The previous hardcoded `localhost:3002` did
- * not match the server's default port, so a fresh clone could not reach the API
- * at all.
+ * Base URL of the API. Vite inlines VITE_API_BASE_URL at build time, so each
+ * build points at one API; the fallback matches the API's default port.
  */
-export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:3000/api/v1/";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api/v1/";
 
 const http = axios.create({
   baseURL: API_BASE_URL,

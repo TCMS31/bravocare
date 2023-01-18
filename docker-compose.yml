@@ -52,7 +52,7 @@ services:
     build:
       context: ./client
       args:
-        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:8601/api/v1/}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8601/api/v1/}
     ports:
       - "8600:8080"
     depends_on:

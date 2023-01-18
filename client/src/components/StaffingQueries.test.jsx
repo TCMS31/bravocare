@@ -4,19 +4,19 @@ import userEvent from "@testing-library/user-event";
 import StaffingQueries from "./StaffingQueries";
 import shiftsService from "../Services/ShiftsService";
 
-jest.mock("../Services/ShiftsService", () => ({
+vi.mock("../Services/ShiftsService", () => ({
   __esModule: true,
   default: {
-    getShifts: jest.fn(),
-    checkOverlap: jest.fn(),
-    getOpenPositions: jest.fn(),
-    getNurseOpportunities: jest.fn(),
-    getColleagues: jest.fn(),
+    getShifts: vi.fn(),
+    checkOverlap: vi.fn(),
+    getOpenPositions: vi.fn(),
+    getNurseOpportunities: vi.fn(),
+    getColleagues: vi.fn(),
   },
 }));
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test("nothing is fetched until a query is chosen", () => {
