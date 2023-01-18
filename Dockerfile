@@ -3,12 +3,12 @@
 # ---------------------------------------------------------------------------
 # deps - install everything and generate the Prisma client.
 # ---------------------------------------------------------------------------
-FROM node:20-bookworm-slim AS deps
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json prisma.config.js ./
 COPY prisma ./prisma
 RUN npm ci && npx prisma generate
 
@@ -18,6 +18,8 @@ RUN npm ci && npx prisma generate
 # ---------------------------------------------------------------------------
 FROM deps AS migrate
 ENV NODE_ENV=production
+# The seed connects through the app's own client factory in src/db.
+COPY src ./src
 USER node
 CMD ["sh", "-c", "npx prisma migrate deploy && node prisma/seed.js"]
 
@@ -30,7 +32,7 @@ RUN npm prune --omit=dev
 # ---------------------------------------------------------------------------
 # runtime - the API.
 # ---------------------------------------------------------------------------
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3000
 RUN apt-get update \
@@ -42,7 +44,7 @@ COPY package.json server.js ./
 COPY src ./src
 COPY prisma ./prisma
 
-# node:20 ships an unprivileged `node` user; never run the API as root.
+# node:22 ships an unprivileged `node` user; never run the API as root.
 USER node
 EXPOSE 3000
 

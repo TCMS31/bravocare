@@ -16,7 +16,14 @@ module.exports = [
   },
   {
     // Server, seed and tests: CommonJS on Node.
-    files: ["src/**/*.js", "tests/**/*.js", "prisma/**/*.js", "server.js", "eslint.config.js"],
+    files: [
+      "src/**/*.js",
+      "tests/**/*.js",
+      "prisma/**/*.js",
+      "server.js",
+      "eslint.config.js",
+      "prisma.config.js",
+    ],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "commonjs",

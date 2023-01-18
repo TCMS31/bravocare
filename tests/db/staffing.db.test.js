@@ -12,9 +12,9 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PrismaClient } = require("@prisma/client");
 
 const { seed } = require("../../prisma/seed");
+const { createPrismaClient } = require("../../src/db/prisma");
 const { ShiftRepository } = require("../../src/repositories/shiftRepository");
 const { StaffingRepository } = require("../../src/repositories/staffingRepository");
 const { ShiftService } = require("../../src/services/shiftService");
@@ -29,7 +29,7 @@ let shifts;
 
 test.before(async () => {
   if (skip) return;
-  prisma = new PrismaClient({ datasources: { db: { url } } });
+  prisma = createPrismaClient(url);
   await seed(prisma);
   staffing = new StaffingRepository(prisma);
   shifts = new ShiftService({ shiftRepository: new ShiftRepository(prisma) });

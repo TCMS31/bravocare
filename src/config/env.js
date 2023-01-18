@@ -1,6 +1,6 @@
 "use strict";
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 /** Read an integer env var, falling back to `fallback` when unset or unparseable. */
 function intFromEnv(name, fallback) {

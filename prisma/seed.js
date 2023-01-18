@@ -4,7 +4,6 @@
  * Every row here is synthetic. No real facility, nurse or patient information
  * is present in this repository.
  */
-const { PrismaClient } = require("@prisma/client");
 
 /** Build a Postgres `time` value from a wall-clock string such as "07:00". */
 const time = (hhmm) => new Date(`1970-01-01T${hhmm}:00.000Z`);
@@ -133,7 +132,9 @@ module.exports = { seed };
 // Run as a script (`npm run db:seed`, the Compose migrate service); the
 // database tests import seed() instead.
 if (require.main === module) {
-  const prisma = new PrismaClient();
+  // Required here, not at the top: the database tests import seed() and pass
+  // their own client, so they must not open a pool on DATABASE_URL.
+  const { prisma } = require("../src/db/prisma");
   seed(prisma)
     .then(() =>
       console.log(

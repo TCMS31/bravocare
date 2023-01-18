@@ -2,9 +2,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// The connection URL lives in prisma.config.js (CLI) and src/db/prisma.js
+// (the driver adapter the app connects through).
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model facilities {
