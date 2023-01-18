@@ -57,6 +57,11 @@ result - brought 93 seconds down to 0.3 seconds, roughly 297x.
 This is why `findNurseOpportunities` takes `{ limit, offset }` and why
 `MAX_PAGE_SIZE` exists: a caller cannot ask for the unpaginated form at all.
 
+These timings predate the question 5 correctness fix, which drops full jobs
+in the `open_jobs` CTE and moves the "already hired" check into the join as
+a `NOT EXISTS`. The query keeps the same shape (page first, then join), but
+it has not been re-measured on the large dataset.
+
 Paging after the join would have measured the same 80 seconds, which is the
 point worth making: the pagination has to reach the query planner to matter.
 

@@ -1,8 +1,9 @@
 # API examples
 
-Real request/response pairs captured against a locally seeded database
-(`npm run db:seed`), with the API on port 8601. Bodies are piped through
-`python3 -m json.tool` for readability; nothing else has been edited.
+Real request/response pairs captured from the Compose stack (`docker compose
+up --build`, demo seed loaded by the `migrate` service). Bodies are
+pretty-printed; nothing else has been edited. Error examples show the HTTP
+status on the last line.
 
 ## `GET /health`
 
@@ -15,7 +16,8 @@ $ curl -s http://localhost:8601/health
 
 ## `GET /api/v1/question_one_shifts` - question 1
 
-The full roster. `meta` reports the page taken and the total available.
+The roster, ordered by date and start time. `meta` reports the page taken and
+the total available.
 
 ```console
 $ curl -s 'http://localhost:8601/api/v1/question_one_shifts?limit=2'
@@ -56,8 +58,8 @@ $ curl -s 'http://localhost:8601/api/v1/question_one_shifts?limit=2'
 
 ## `POST /api/v1/overlap` - question 1
 
-Two shifts at the same facility, 15 minutes apart. The handover allowance is
-30 minutes, so this is not a conflict.
+Two shifts at the same facility that overlap by 15 minutes. The handover
+allowance is 30 minutes, so this is not a conflict.
 
 ```console
 $ curl -s -X POST http://localhost:8601/api/v1/overlap \
@@ -92,9 +94,7 @@ $ curl -s -X POST http://localhost:8601/api/v1/overlap \
 ### Error responses
 
 ```console
-$ curl -s -w '
-HTTP %{http_code}
-' -X POST http://localhost:8601/api/v1/overlap \
+$ curl -s -X POST http://localhost:8601/api/v1/overlap \
     -H 'Content-Type: application/json' -d '{"shift1": 1, "shift2": 999}'
 {
     "status": "error",
@@ -119,7 +119,8 @@ HTTP 400
 ```
 
 ```console
-$ curl -s -X POST http://localhost:8601/api/v1/overlap -H 'Content-Type: application/json' -d '{}'
+$ curl -s -X POST http://localhost:8601/api/v1/overlap \
+    -H 'Content-Type: application/json' -d '{}'
 {
     "status": "error",
     "message": "shift1 is required"
@@ -129,7 +130,7 @@ HTTP 400
 
 ## `GET /api/v1/q4` - question 4
 
-How many nurses each job still needs.
+How many nurses each job still needs. Job 4 is full and shows zero.
 
 ```console
 $ curl -s http://localhost:8601/api/v1/q4

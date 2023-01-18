@@ -22,7 +22,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "node prisma/seed.js"
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
