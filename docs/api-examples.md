@@ -195,8 +195,9 @@ $ curl -s http://localhost:8601/api/v1/q4
 
 ## `GET /api/v1/q5` - question 5
 
-Jobs each nurse is still eligible for. Priya is absent because the only LPN
-job is the one she already holds.
+Jobs each nurse can still be hired for: a job of their type, with a free
+spot, that they do not already hold. RN job 4 is full, so Anne and Tomas are
+offered job 6 only. Priya holds the only LPN job and is listed with zero.
 
 ```console
 $ curl -s http://localhost:8601/api/v1/q5
@@ -205,14 +206,14 @@ $ curl -s http://localhost:8601/api/v1/q5
         "total": 7,
         "limit": 50,
         "offset": 0,
-        "returned": 6
+        "returned": 7
     },
     "result": [
         {
             "nurse_id": 1,
             "nurse_name": "Anne",
             "nurse_type": "RN",
-            "total_remaining_jobs": 2,
+            "total_remaining_jobs": 1,
             "remaining_spots": 2
         },
         {
@@ -223,10 +224,17 @@ $ curl -s http://localhost:8601/api/v1/q5
             "remaining_spots": 1
         },
         {
+            "nurse_id": 3,
+            "nurse_name": "Priya",
+            "nurse_type": "LPN",
+            "total_remaining_jobs": 0,
+            "remaining_spots": 0
+        },
+        {
             "nurse_id": 4,
             "nurse_name": "Tomas",
             "nurse_type": "RN",
-            "total_remaining_jobs": 2,
+            "total_remaining_jobs": 1,
             "remaining_spots": 2
         },
         {

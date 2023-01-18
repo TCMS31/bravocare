@@ -55,11 +55,14 @@ class StaffingRepository {
   }
 
   /**
-   * For each nurse, the jobs matching their type that they are not already on.
+   * For each nurse, the jobs matching their type that still have a free spot
+   * and that they are not already on.
    *
-   * The original grouped by the computed `remaining_spots` as well, which split
-   * one nurse across several rows - one per distinct spot count - and made
-   * `total_remaining_jobs` count within a group instead of across the nurse.
+   * Full jobs are dropped in `open_jobs`, so a job with no spots left is not
+   * offered to anyone. The "already hired" test sits inside the join condition
+   * rather than in a WHERE clause: filtering afterwards removed a nurse
+   * entirely once every job of their type was one they held, instead of
+   * reporting zero opportunities for them.
    *
    * The nurse page is taken before the join, not after. This query pairs every
    * nurse with every job of their type, so its cost is nurses x jobs-of-type;
@@ -78,6 +81,7 @@ class StaffingRepository {
         FROM jobs
         LEFT JOIN nurse_hired_jobs ON jobs.job_id = nurse_hired_jobs.job_id
         GROUP BY jobs.job_id, jobs.nurse_type_needed, jobs.total_number_nurses_needed
+        HAVING jobs.total_number_nurses_needed - COUNT(DISTINCT nurse_hired_jobs.nurse_id) > 0
       ), nurse_page AS (
         SELECT nurse_id, nurse_name, nurse_type
         FROM nurses
@@ -91,11 +95,14 @@ class StaffingRepository {
         COUNT(open_jobs.job_id)::int AS total_remaining_jobs,
         COALESCE(SUM(open_jobs.remaining_spots), 0)::int AS remaining_spots
       FROM nurse_page
-      LEFT JOIN open_jobs ON nurse_page.nurse_type = open_jobs.nurse_type_needed
-      LEFT JOIN nurse_hired_jobs already_hired
-        ON already_hired.nurse_id = nurse_page.nurse_id
-       AND already_hired.job_id = open_jobs.job_id
-      WHERE already_hired.nurse_id IS NULL
+      LEFT JOIN open_jobs
+        ON open_jobs.nurse_type_needed = nurse_page.nurse_type
+       AND NOT EXISTS (
+             SELECT 1
+             FROM nurse_hired_jobs already_hired
+             WHERE already_hired.nurse_id = nurse_page.nurse_id
+               AND already_hired.job_id = open_jobs.job_id
+           )
       GROUP BY nurse_page.nurse_id, nurse_page.nurse_name, nurse_page.nurse_type
       ORDER BY nurse_page.nurse_id
     `;

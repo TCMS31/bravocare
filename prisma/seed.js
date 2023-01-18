@@ -6,8 +6,6 @@
  */
 const { PrismaClient } = require("@prisma/client");
 
-const prisma = new PrismaClient();
-
 /** Build a Postgres `time` value from a wall-clock string such as "07:00". */
 const time = (hhmm) => new Date(`1970-01-01T${hhmm}:00.000Z`);
 /** Build a Postgres `date` value from an ISO day such as "2023-02-06". */
@@ -110,7 +108,12 @@ const hires = [
   { job_id: 5, nurse_id: 5 }, // Grace, CNA at Lakeview
 ];
 
-async function main() {
+/**
+ * Replace every row with the demo data set.
+ *
+ * @param {import("@prisma/client").PrismaClient} prisma
+ */
+async function seed(prisma) {
   // Children first so repeated runs do not trip foreign keys.
   await prisma.nurse_hired_jobs.deleteMany();
   await prisma.question_one_shifts.deleteMany();
@@ -123,16 +126,24 @@ async function main() {
   await prisma.nurses.createMany({ data: nurses });
   await prisma.jobs.createMany({ data: jobs });
   await prisma.nurse_hired_jobs.createMany({ data: hires });
-
-  console.log(
-    `Seeded ${facilities.length} facilities, ${shifts.length} shifts, ` +
-      `${nurses.length} nurses, ${jobs.length} jobs, ${hires.length} hires.`
-  );
 }
 
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+module.exports = { seed };
+
+// Run as a script (`npm run db:seed`, the Compose migrate service); the
+// database tests import seed() instead.
+if (require.main === module) {
+  const prisma = new PrismaClient();
+  seed(prisma)
+    .then(() =>
+      console.log(
+        `Seeded ${facilities.length} facilities, ${shifts.length} shifts, ` +
+          `${nurses.length} nurses, ${jobs.length} jobs, ${hires.length} hires.`
+      )
+    )
+    .catch((err) => {
+      console.error(err);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma.$disconnect());
+}
