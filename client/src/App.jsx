@@ -10,16 +10,19 @@ function App() {
   const [selection, setSelection] = useState([]);
 
   return (
-    <div className="App">
-      <main className="page">
-        <TopBar selection={selection} />
-        <p className="page__hint">
-          Select two shifts, then check whether they overlap by more than the roster allows.
+    <main className="page">
+      <header className="masthead">
+        <p className="masthead__eyebrow">Nurse staffing roster</p>
+        <h1 className="masthead__title">Shift overlap check</h1>
+        <p className="masthead__lede">
+          Pick two shifts to see whether they overlap by more than the roster allows: a short
+          handover at the same facility, none across facilities.
         </p>
-        <ShiftSection selection={selection} setSelection={setSelection} />
-        <StaffingQueries />
-      </main>
-    </div>
+      </header>
+      <TopBar selection={selection} />
+      <ShiftSection selection={selection} setSelection={setSelection} />
+      <StaffingQueries />
+    </main>
   );
 }
 

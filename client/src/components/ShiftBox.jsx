@@ -28,7 +28,6 @@ const ShiftBox = ({ facilityName, shift, selectShift, selected }) => (
     onClick={() => selectShift(shift)}
   >
     <span className="shift-box__facility">{facilityName || "Unassigned"}</span>
-    <span className="shift-box__date">{formatDate(shift.shift_date)}</span>
     <span className="shift-box__time">
       {formatTime(shift.start_time)} &ndash; {formatTime(shift.end_time)}
     </span>

@@ -164,3 +164,38 @@ test("an empty roster shows an empty state rather than a blank page", async () =
 
   expect(await screen.findByText(/no shifts have been scheduled/i)).toBeInTheDocument();
 });
+
+test("shifts are grouped under a heading per day", async () => {
+  shiftsService.getShifts.mockResolvedValue({
+    ...shiftsPayload,
+    data: {
+      question_one_shifts: [
+        ...shiftsPayload.data.question_one_shifts,
+        {
+          shift_id: 6,
+          facility_id: 3,
+          shift_date: "2023-02-07T00:00:00.000Z",
+          start_time: "1970-01-01T08:00:00.000Z",
+          end_time: "1970-01-01T16:00:00.000Z",
+          facility: { facility_name: "Lakeview Clinic" },
+        },
+      ],
+    },
+  });
+
+  render(<App />);
+
+  const days = await screen.findAllByRole("heading", { level: 3 });
+  expect(days.map((heading) => heading.textContent)).toEqual(["2023-02-06", "2023-02-07"]);
+});
+
+test("a roster longer than one page says how much is shown", async () => {
+  shiftsService.getShifts.mockResolvedValue({
+    ...shiftsPayload,
+    meta: { total: 120, limit: 50, offset: 0, returned: 3 },
+  });
+
+  render(<App />);
+
+  expect(await screen.findByText("Showing the first 3 of 120 shifts.")).toBeInTheDocument();
+});

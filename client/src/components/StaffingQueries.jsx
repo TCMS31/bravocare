@@ -70,13 +70,17 @@ const StaffingQueries = () => {
   };
 
   return (
-    <section className="queries" aria-label="Staffing queries">
+    <section className="queries" aria-labelledby="queries-title">
+      <h2 className="section-title" id="queries-title">
+        Staffing questions
+      </h2>
       <div className="queries__buttons">
         {QUERIES.map((query) => (
           <button
             key={query.id}
             type="button"
-            className={`submit-btn${activeId === query.id ? " submit-btn--active" : ""}`}
+            className="btn"
+            aria-pressed={activeId === query.id}
             onClick={() => runQuery(query)}
           >
             {query.label}
@@ -87,7 +91,7 @@ const StaffingQueries = () => {
       {active && (
         <div className="queries__result">
           <p className="queries__description">{active.description}</p>
-          {pending && <p>Running&hellip;</p>}
+          {pending && <p aria-busy="true">Running&hellip;</p>}
           {error && (
             <p className="queries__error" role="alert">
               {error}
@@ -95,24 +99,34 @@ const StaffingQueries = () => {
           )}
           {!pending && !error && rows.length === 0 && <p>No rows returned.</p>}
           {!pending && !error && rows.length > 0 && (
-            <table className="result-table">
-              <thead>
-                <tr>
-                  {active.columns.map(([key, heading]) => (
-                    <th key={key}>{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr key={row.job_id ?? row.nurse_id ?? index}>
-                    {active.columns.map(([key]) => (
-                      <td key={key}>{row[key] ?? "-"}</td>
+            <div className="table-scroll">
+              <table className="result-table">
+                <caption className="visually-hidden">{active.label}</caption>
+                <thead>
+                  <tr>
+                    {active.columns.map(([key, heading]) => (
+                      <th key={key} scope="col">
+                        {heading}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((row, index) => (
+                    <tr key={row.job_id ?? row.nurse_id ?? index}>
+                      {active.columns.map(([key]) => (
+                        <td
+                          key={key}
+                          className={typeof row[key] === "number" ? "is-number" : undefined}
+                        >
+                          {row[key] ?? "-"}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

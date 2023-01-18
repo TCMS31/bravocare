@@ -3,7 +3,7 @@ import { useState } from "react";
 import shiftsService from "../Services/ShiftsService";
 import { describeError } from "../Services/GenericServices";
 
-/** Header showing the overlap verdict for the two currently selected shifts. */
+/** The overlap verdict for the two currently selected shifts. */
 const TopBar = ({ selection }) => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -36,41 +36,38 @@ const TopBar = ({ selection }) => {
     : "verdict verdict--idle";
 
   return (
-    <header className="top-bar">
-      <div className="top-bar__readout">
-        <h1 className="top-bar__title">Shift overlap check</h1>
-        <dl className="readout">
-          <div className="readout__row">
-            <dt>Overlap</dt>
-            <dd>{result ? `${result.overlap} min` : "--"}</dd>
-          </div>
-          <div className="readout__row">
-            <dt>Allowed</dt>
-            <dd>{result ? `${result.max_threshold} min` : "--"}</dd>
-          </div>
-          <div className="readout__row">
-            <dt>Verdict</dt>
-            <dd>
-              <span className={verdictClass}>
-                {result ? (result.exceeds_threshold ? "Conflict" : "Within policy") : "Not checked"}
-              </span>
-            </dd>
-          </div>
-        </dl>
-        {error ? (
-          <p className="top-bar__error" role="alert">
-            {error}
-          </p>
-        ) : (
-          <p className="top-bar__hint">
-            {ready ? "Two shifts selected." : `Selected ${selection.length} of 2 shifts.`}
-          </p>
-        )}
-      </div>
-      <button className="submit-btn" onClick={checkOverlap} disabled={pending}>
+    <section className="overlap-panel" aria-label="Overlap result">
+      <dl className="readout" aria-live="polite">
+        <div className="readout__row">
+          <dt>Overlap</dt>
+          <dd>{result ? `${result.overlap} min` : "--"}</dd>
+        </div>
+        <div className="readout__row">
+          <dt>Allowed</dt>
+          <dd>{result ? `${result.max_threshold} min` : "--"}</dd>
+        </div>
+        <div className="readout__row">
+          <dt>Verdict</dt>
+          <dd>
+            <span className={verdictClass}>
+              {result ? (result.exceeds_threshold ? "Conflict" : "Within policy") : "Not checked"}
+            </span>
+          </dd>
+        </div>
+      </dl>
+      <button type="button" className="btn btn--primary" onClick={checkOverlap} disabled={pending}>
         {pending ? "Checking..." : "Check overlap"}
       </button>
-    </header>
+      {error ? (
+        <p className="overlap-panel__status overlap-panel__status--error" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="overlap-panel__status">
+          {ready ? "Two shifts selected." : `Selected ${selection.length} of 2 shifts.`}
+        </p>
+      )}
+    </section>
   );
 };
 
