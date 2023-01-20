@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model facilities {
+  facility_id         Int                   @id
+  facility_name       String?               @db.VarChar(255)
+  jobs                jobs[]
+  question_one_shifts question_one_shifts[]
+}
+
+model jobs {
+  job_id                     Int                @id
+  facility_id                Int?
+  nurse_type_needed          String?            @db.VarChar(255)
+  total_number_nurses_needed Int?
+  facility                   facilities?        @relation(fields: [facility_id], references: [facility_id])
+  hires                      nurse_hired_jobs[]
+
+  // Postgres does not index a foreign key column automatically, and every
+  // staffing query joins or filters on these two.
+  @@index([facility_id])
+  @@index([nurse_type_needed])
+}
+
+model nurse_hired_jobs {
+  job_id   Int
+  nurse_id Int
+  job      jobs   @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
+  nurse    nurses @relation(fields: [nurse_id], references: [nurse_id], onDelete: Cascade)
+
+  @@id([job_id, nurse_id])
+  // The composite primary key already covers lookups by job_id; lookups by
+  // nurse_id (question 5's "am I already on this job?" join) need their own.
+  @@index([nurse_id])
+}
+
+model nurses {
+  nurse_id   Int                @id
+  nurse_name String?            @db.VarChar(255)
+  nurse_type String?            @db.VarChar(255)
+  hires      nurse_hired_jobs[]
+
+  @@index([nurse_type])
+  @@index([nurse_name])
+}
+
+model question_one_shifts {
+  shift_id    Int         @id
+  facility    facilities? @relation(fields: [facility_id], references: [facility_id])
+  facility_id Int?
+  shift_date  DateTime?   @db.Date
+  start_time  DateTime?   @db.Time(6)
+  end_time    DateTime?   @db.Time(6)
+
+  @@index([facility_id])
+  @@index([shift_date])
+}
