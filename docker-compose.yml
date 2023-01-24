@@ -1,0 +1,63 @@
+name: bravocare
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bravocare
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bravocare}
+      POSTGRES_DB: bravocare
+    ports:
+      - "8605:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bravocare -d bravocare"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: applies migrations and loads the synthetic seed, then exits.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://bravocare:${POSTGRES_PASSWORD:-bravocare}@db:5432/bravocare?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://bravocare:${POSTGRES_PASSWORD:-bravocare}@db:5432/bravocare?schema=public
+      PORT: "3000"
+      NODE_ENV: production
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8600}
+      LOG_FORMAT: combined
+    ports:
+      - "8601:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./client
+      args:
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:8601/api/v1/}
+    ports:
+      - "8600:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
