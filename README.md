@@ -1,80 +1,91 @@
-# bravocare - shift overlap and staffing
+# bravocare — shift overlap and staffing
 
-A small full-stack answer to a nurse-rostering exercise. An Express + Prisma API
-over PostgreSQL decides whether two scheduled shifts overlap by more than the
-roster allows, and answers three staffing questions about open jobs and which
-nurses can fill them. A React single-page app drives it: pick two shifts, get a
-verdict, and run each staffing query into a table.
+Two nurses, two scheduled shifts: do they clash? This is a full-stack answer to
+that question, plus three staffing queries about open jobs and who can fill
+them. An Express + Prisma API over PostgreSQL holds the rule, a React SPA drives
+it, and the endpoints are still named after the exercise's question numbers so
+an answer maps back to the question it answers.
 
-The rule the overlap check enforces is that two shifts at the **same** facility
-may overlap by up to a 30 minute handover, while two shifts at **different**
-facilities may not overlap at all - nobody can be in two buildings at once. Both
-allowances are configurable.
+The rule itself is short. Two shifts at the **same** facility may overlap by up
+to a 30 minute handover — the outgoing and incoming nurse hand the ward over in
+person. Two shifts at **different** facilities may not overlap at all, because
+nobody can be in two buildings at once. Both allowances are env vars, and the
+rule as a whole is swappable (see [Swapping the rule](#swapping-the-rule)).
 
-## Screenshots
+## Seeing it work
 
-Captured with Playwright at 1440x900 against the seeded demo database.
+Captured with Playwright against the seeded demo database. The first two shots
+are 1440x660 — a 1440-wide viewport trimmed below the last control, so the whole
+page is there with the empty space cut off. The last two are the full 1440x900.
 
-Two shifts at the same facility, overlapping by 15 minutes - inside the handover
-allowance, so no conflict:
+Two Harborview General shifts overlapping by 15 minutes. That is inside the
+30 minute handover, so the verdict is **Within policy**:
 
 ![Overlap within policy](docs/screenshots/01-overlap-within-policy.png)
 
-The same 60 minute overlap across two different facilities is a conflict:
+Swap the second pick for a Riverside Care Center shift and the same kind of
+overlap — 60 minutes, across two facilities — becomes a **Conflict** against an
+allowance of zero:
 
 ![Overlap conflict](docs/screenshots/02-overlap-conflict.png)
 
-Question 4 - how many nurses each open job still needs:
+Question 4, how many nurses each open job still needs:
 
 ![Open positions](docs/screenshots/03-open-positions.png)
 
-Question 5 - the jobs each nurse is still eligible for:
+Question 5, the jobs each nurse is still eligible for:
 
 ![Nurse opportunities](docs/screenshots/04-nurse-opportunities.png)
 
-Real request/response pairs for every endpoint are in
-[docs/api-examples.md](docs/api-examples.md).
+Real request/response pairs for every endpoint, including the 400 and 404 cases,
+are captured in [docs/api-examples.md](docs/api-examples.md).
 
-## Architecture
+## Run it
 
-```mermaid
-flowchart TD
-  subgraph browser["Browser"]
-    UI["React SPA<br/>TopBar, ShiftSection, StaffingQueries"]
-    SVC["ShiftsService<br/>axios wrapper"]
-    UI --> SVC
-  end
+With Docker — one command brings up Postgres, applies both migrations, loads the
+seed, then starts the API and the client:
 
-  subgraph api["Express API"]
-    R["Routes<br/>src/http/routes"]
-    C["Controllers<br/>parse request, shape response"]
-    V["Validation<br/>src/http/validation.js"]
-    S["Services<br/>business rules"]
-    D["Domain<br/>overlap, overlapPolicy"]
-    P["Repositories<br/>Prisma and raw SQL"]
-    E["Error handler<br/>AppError to HTTP status"]
-    R --> C
-    C --> V
-    C --> S
-    S --> D
-    S --> P
-    C -. "throws" .-> E
-  end
-
-  DB[("PostgreSQL<br/>facilities, jobs, nurses,<br/>nurse_hired_jobs, question_one_shifts")]
-
-  SVC -->|"HTTP JSON"| R
-  P -->|"Prisma Client"| DB
+```sh
+cp .env.example .env          # optional; compose reads POSTGRES_PASSWORD,
+                              # CORS_ORIGIN and REACT_APP_API_BASE_URL if set
+docker compose up --build
 ```
 
-Dependencies point inward: controllers know services, services know the domain
-and the repository interface, and the domain knows nothing at all. `src/app.js`
-takes its services as an argument, so the tests build the whole HTTP stack over
-in-memory repositories with no database running.
+The client lands on <http://localhost:8600>, the API on <http://localhost:8601>.
+The `migrate` service is a one-shot that the API waits on.
 
-## Workflow
+Without Docker you need a PostgreSQL 14+ instance and Node 18+:
 
-The main flow - selecting two shifts and asking whether they clash:
+```sh
+# API
+cp .env.example .env          # point DATABASE_URL at your database
+npm install
+npm run db:migrate            # apply both migrations
+npm run db:seed               # load the synthetic demo data
+npm start                     # http://localhost:3000
+
+# Client, in a second terminal
+cd client
+cp .env.example .env.local    # REACT_APP_API_BASE_URL + PORT
+npm install
+npm start                     # http://localhost:3001
+```
+
+## What the API answers
+
+| Method | Path                          | Question | Notes                                                      |
+| ------ | ----------------------------- | -------- | ---------------------------------------------------------- |
+| `GET`  | `/health`                     | –        | Liveness probe; the container healthcheck curls it.        |
+| `GET`  | `/api/v1/question_one_shifts` | 1        | Paged roster with facility names. `limit`, `offset`.       |
+| `POST` | `/api/v1/overlap`             | 1        | Body `{shift1, shift2}`. Returns the overlap and verdict.  |
+| `GET`  | `/api/v1/q4`                  | 4        | Open positions per job. `limit`, `offset`.                 |
+| `GET`  | `/api/v1/q5`                  | 5        | Jobs each nurse can still take. `limit`, `offset`.         |
+| `GET`  | `/api/v1/q6`                  | 6        | Nurses sharing a facility with `?nurse=` (default `Anne`). |
+
+`q4`/`q5`/`q6` are kept as the brief numbered them. Renaming them to REST nouns
+would make the answers harder to map back to the questions they answer.
+
+## From click to verdict
 
 ```mermaid
 sequenceDiagram
@@ -90,8 +101,8 @@ sequenceDiagram
   U->>UI: click "Check overlap"
   UI->>API: POST /api/v1/overlap {shift1, shift2}
   API->>API: parseId on both fields
-  alt either id is missing or not an integer
-    API-->>UI: 400 with the offending field
+  alt either id is missing or not a positive integer
+    API-->>UI: 400 naming the offending field
   else ids are valid
     API->>SV: compareShifts(id1, id2)
     SV->>RP: findByIds([id1, id2])
@@ -103,215 +114,194 @@ sequenceDiagram
       API-->>UI: 404
     else both found
       SV->>SV: scheduledOverlapInMinutes(a, b)
-      SV->>SV: overlapPolicy.allowanceMinutes(a, b)
-      SV-->>API: {overlap, max_threshold, exceeds_threshold, policy}
+      SV->>SV: policy.allowanceMinutes(a, b)
+      SV-->>API: overlap, max_threshold, exceeds_threshold, policy
       API-->>UI: 200
       UI->>U: "Within policy" or "Conflict"
     end
   end
 ```
 
-## Quickstart
+Both shifts come back in **one** query, not two — `tests/unit/shiftService.test.js`
+has a test named "both shifts are fetched in a single query" that holds it there.
+`src/app.js` takes its services as an argument, so the HTTP suite builds the
+whole Express stack over in-memory repositories with no database running.
 
-With Docker:
+## The five tables
 
-```sh
-cp .env.example .env          # optional: only POSTGRES_PASSWORD is read from it
-docker compose up --build
+```mermaid
+erDiagram
+  facilities ||--o{ jobs : "staffs"
+  facilities ||--o{ question_one_shifts : "hosts"
+  jobs ||--o{ nurse_hired_jobs : "filled by"
+  nurses ||--o{ nurse_hired_jobs : "holds"
+
+  facilities {
+    int facility_id PK
+    varchar facility_name
+  }
+  jobs {
+    int job_id PK
+    int facility_id FK
+    varchar nurse_type_needed
+    int total_number_nurses_needed
+  }
+  nurses {
+    int nurse_id PK
+    varchar nurse_name
+    varchar nurse_type
+  }
+  nurse_hired_jobs {
+    int job_id PK, FK
+    int nurse_id PK, FK
+  }
+  question_one_shifts {
+    int shift_id PK
+    int facility_id FK
+    date shift_date
+    time start_time
+    time end_time
+  }
 ```
 
-The client is then on <http://localhost:8600> and the API on
-<http://localhost:8601>. The `migrate` service applies the migrations and loads
-the seed before the API starts.
+`nurse_hired_jobs` is the join table question 5 works against: a nurse is
+eligible for a job when `nurse_type` matches `nurse_type_needed` and no row
+already pairs them.
 
-Without Docker, you need a PostgreSQL 14+ instance:
+The first migration (`20230116215257_new`) creates these tables with no foreign
+keys and no indexes beyond the primary keys. The second
+(`20230120000000_add_indexes_and_foreign_keys`) adds both — PostgreSQL indexes a
+primary key automatically but never a foreign key column, and every staffing
+query joins or filters on one. The same migration cleans up orphan rows first,
+so it applies to a database that already has data.
 
-```sh
-# API
-cp .env.example .env          # set DATABASE_URL to point at your database
-npm install
-npm run db:migrate            # apply migrations
-npm run db:seed               # load the synthetic demo data
-npm start                     # http://localhost:3000
+## Why question 5 has to paginate inside the query
 
-# Client, in a second terminal
-cd client
-cp .env.example .env.local    # REACT_APP_API_BASE_URL + PORT
-npm install
-npm start                     # http://localhost:3001
-```
+Question 5 pairs every nurse with every job of their type. On a synthetic
+50,000-nurse dataset that is hundreds of millions of candidate pairs, and the
+indexes above barely dent it — the cost is the join, not the lookup.
 
-## Configuration
+[docs/benchmarks.md](docs/benchmarks.md) records the `EXPLAIN (ANALYZE)` runs.
+Three variants of the same query, same dataset, three runs each:
 
-API (`.env` in the repository root):
+| Variant                            | Execution time     |
+| ---------------------------------- | ------------------ |
+| Unpaginated, no indexes            | 92,664 – 94,413 ms |
+| Unpaginated, with the indexes      | 79,451 – 80,743 ms |
+| 50-nurse page taken inside the query | 312.2 – 315.1 ms |
 
-| Variable                                   | Required | Default       | Purpose                                                                               |
-| ------------------------------------------ | -------- | ------------- | ------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                             | yes      | -             | PostgreSQL connection string used by Prisma.                                          |
-| `PORT`                                     | no       | `3000`        | Port the API listens on.                                                              |
-| `NODE_ENV`                                 | no       | `development` | `test` silences request logging; `development` adds a `debug` field to 500 responses. |
-| `CORS_ORIGIN`                              | no       | `*`           | Browser origin allowed to call the API.                                               |
-| `LOG_FORMAT`                               | no       | `dev`         | morgan format: `dev`, `combined`, `common`, `short`, `tiny`.                          |
-| `SAME_FACILITY_OVERLAP_ALLOWANCE_MINUTES`  | no       | `30`          | Handover minutes two shifts at one facility may share.                                |
-| `CROSS_FACILITY_OVERLAP_ALLOWANCE_MINUTES` | no       | `0`           | Minutes two shifts at different facilities may share.                                 |
-| `DEFAULT_PAGE_SIZE`                        | no       | `50`          | Page size when a request does not send `limit`.                                       |
-| `MAX_PAGE_SIZE`                            | no       | `200`         | Hard ceiling on `limit`; larger values are clamped, not rejected.                     |
+That last row is why `findNurseOpportunities` takes `{ limit, offset }` and
+pushes them into a `nurse_page` CTE **before** the join rather than slicing the
+result afterwards. Slicing afterwards would have measured the same 80 seconds.
+`MAX_PAGE_SIZE` exists so a caller cannot ask for the unpaginated form at all;
+an oversized `limit` is clamped, not rejected.
 
-Client (`client/.env.local`):
+`COUNT` and `SUM` return `bigint`, which reaches JSON as a *string*, so both
+aggregates are cast with `::int` in the SQL where the type belongs.
 
-| Variable                 | Required | Default                         | Purpose                                                                |
-| ------------------------ | -------- | ------------------------------- | ---------------------------------------------------------------------- |
-| `REACT_APP_API_BASE_URL` | no       | `http://localhost:3000/api/v1/` | Base URL of the API, trailing slash included.                          |
-| `PORT`                   | no       | `3000`                          | Dev server port. Set it to `3001` so it does not collide with the API. |
+## Two things the clock gets wrong
 
-Create React App inlines `REACT_APP_*` at build time, which is why the Docker
-image takes the URL as a build argument.
+Interval arithmetic on a roster has two traps, and both have a named test in
+`tests/unit/overlap.test.js`:
 
-## Development
+- **Prisma maps a `TIME` column to a Date pinned to 1970-01-01 UTC.** Read it
+  with `getHours()` and every shift shifts by the machine's timezone offset.
+  `overlap.js` uses the UTC accessors; the test is "minutesSinceMidnight reads
+  the UTC wall clock, not the local one".
+- **A shift whose end is not after its start is a night shift.** 22:00–06:00
+  ends the next day, so its end is pushed forward a day before comparison.
+  Without that every night shift reports zero overlap against everything. Tests:
+  "toInterval pushes an overnight end time into the next day" and "an overnight
+  shift overlaps the next morning's shift".
+
+Each shift's times are relative to its own `shift_date`, so the second shift is
+translated onto the first's day before the intervals meet. That is what lets a
+22:00 Monday shift collide with a 05:00 Tuesday one.
+
+## Swapping the rule
+
+The 30/0 minute handover lives in `src/domain/overlapPolicy.js` as a named
+policy built from a registry, not as a branch inside the service. Two are
+registered: `handover` (the default, described at the top) and `strict`, which
+allows no overlap anywhere.
+
+A customer with a 15 minute handover changes
+`SAME_FACILITY_OVERLAP_ALLOWANCE_MINUTES`. A customer whose rule depends on
+ward, travel time or nurse grade registers a policy and injects it into
+`ShiftService` — `tests/unit/shiftService.test.js` does exactly that in "an
+injected policy replaces the default rules". This is the one extension point the
+exercise implies, so it is the only one built.
+
+## Settings
+
+API, read from `.env` in the repository root:
+
+| Variable                                   | Default       | Purpose                                                                               |
+| ------------------------------------------ | ------------- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                             | **required**  | PostgreSQL connection string used by Prisma.                                          |
+| `PORT`                                     | `3000`        | Port the API listens on.                                                              |
+| `NODE_ENV`                                 | `development` | `test` silences request logging; `development` adds a `debug` field to 500 responses. |
+| `CORS_ORIGIN`                              | `*`           | Browser origin allowed to call the API.                                               |
+| `LOG_FORMAT`                               | `dev`         | morgan format: `dev`, `combined`, `common`, `short`, `tiny`.                          |
+| `SAME_FACILITY_OVERLAP_ALLOWANCE_MINUTES`  | `30`          | Handover minutes two shifts at one facility may share.                                |
+| `CROSS_FACILITY_OVERLAP_ALLOWANCE_MINUTES` | `0`           | Minutes two shifts at different facilities may share.                                 |
+| `DEFAULT_PAGE_SIZE`                        | `50`          | Page size when a request sends no `limit`.                                            |
+| `MAX_PAGE_SIZE`                            | `200`         | Ceiling on `limit`; larger values are clamped.                                        |
+
+An integer variable that will not parse throws at startup rather than silently
+falling back.
+
+Client, read from `client/.env.local`: `REACT_APP_API_BASE_URL` (default
+`http://localhost:3000/api/v1/`, trailing slash included) and `PORT` (the
+example ships `3001` so the dev server does not collide with the API). Create
+React App inlines `REACT_APP_*` at build time, which is why the client
+Dockerfile takes the URL as a build argument.
+
+## Working on it
 
 ```sh
 npm run dev           # API with nodemon
 npm test              # server suite: node:test + supertest
 npm run test:client   # client suite: Jest + React Testing Library
-npm run lint          # ESLint over the server, the seed, the tests and the client
+npm run lint          # ESLint over server, seed, tests and client
 npm run format        # Prettier
 npm run db:seed       # reload the synthetic demo data
 ```
 
-Both suites run offline. The server tests build the Express app over in-memory
-repositories, so no database is needed; the client tests replace
-`ShiftsService` with a module mock, so no HTTP request is made.
+Both suites run offline and need no database. The server tests build the Express
+app over in-memory repositories; the client tests replace `ShiftsService` with a
+module mock, so no HTTP request leaves the process.
 
-## API
+Under the hood the API is routes → controllers → services → repositories, with a
+dependency-free domain layer (`overlap.js`, `overlapPolicy.js`) underneath that
+knows nothing about Express or Prisma. Every handler is wrapped so a rejected
+promise reaches one error middleware; known failures carry their status on an
+`AppError` and anything else becomes a flat 500 with no internals in it.
 
-| Method | Path                          | Question | Notes                                                      |
-| ------ | ----------------------------- | -------- | ---------------------------------------------------------- |
-| `GET`  | `/health`                     | -        | Liveness probe used by the container healthcheck.          |
-| `GET`  | `/api/v1/question_one_shifts` | 1        | Paged roster with facility names. `limit`, `offset`.       |
-| `POST` | `/api/v1/overlap`             | 1        | Body `{shift1, shift2}`. Returns the overlap and verdict.  |
-| `GET`  | `/api/v1/q4`                  | 4        | Open positions per job. `limit`, `offset`.                 |
-| `GET`  | `/api/v1/q5`                  | 5        | Jobs each nurse can still take. `limit`, `offset`.         |
-| `GET`  | `/api/v1/q6`                  | 6        | Nurses sharing a facility with `?nurse=` (default `Anne`). |
-
-The `q4`/`q5`/`q6` paths are kept as-is: they are the brief's question numbers,
-and renaming them would make the answers harder to map back to the questions.
-
-## Project structure
-
-```
-.
-├── server.js                     # process entry point: listen, graceful shutdown
-├── src
-│   ├── app.js                    # builds the Express app from injected services
-│   ├── container.js              # the one place that wires the real object graph
-│   ├── config/env.js             # env parsing with defaults and type checks
-│   ├── db/prisma.js              # the single PrismaClient (one connection pool)
-│   ├── domain
-│   │   ├── overlap.js            # pure interval maths, timezone and midnight safe
-│   │   └── overlapPolicy.js      # registry of overlap rules - the extension seam
-│   ├── services                  # business rules, framework free
-│   ├── repositories              # Prisma queries and the raw SQL for q4-q6
-│   └── http
-│       ├── routes/               # path to controller
-│       ├── controllers/          # HTTP in, HTTP out, nothing else
-│       ├── validation.js         # request parsing, 400s instead of crashes
-│       ├── errors.js             # AppError carrying an HTTP status
-│       └── middleware/           # async wrapper, 404 and error handlers
-├── prisma
-│   ├── schema.prisma             # models, relations and indexes
-│   ├── migrations/               # initial schema, then indexes + foreign keys
-│   └── seed.js                   # synthetic demo data
-├── tests
-│   ├── unit/                     # domain, policy, service, validation
-│   ├── http/                     # full Express stack over stub repositories
-│   └── helpers/fixtures.js       # shift factory and in-memory repositories
-├── client/src
-│   ├── components/               # TopBar, ShiftSection, ShiftBox, StaffingQueries
-│   └── Services/                 # axios instance and the API client
-└── docs
-    ├── api-examples.md           # captured request/response pairs
-    ├── benchmarks.md             # measured query timings
-    └── screenshots/
-```
-
-## Design notes
-
-**Layering.** The original was a single 176-line `app.js` holding Express
-wiring, Prisma calls, raw SQL and the overlap rule together, with a
-copy-pasted `try/catch` per route. It is now routes → controllers → services →
-repositories, with a dependency-free domain layer underneath. The payoff is
-concrete: the HTTP suite exercises every route without Postgres, because
-`createApp` receives its services rather than importing them.
-
-**The domain is pure.** `overlap.js` deals in minutes, not in Prisma rows or
-Express requests, which is why the awkward cases are cheap to test. Two of them
-are genuinely awkward. Prisma maps a `TIME` column to a Date pinned to
-1970-01-01 **UTC**, so reading it with `getHours()` shifts every shift by the
-machine's timezone offset; the code uses the UTC accessors and a test asserts
-it. And a shift whose end time is not after its start time is a night shift, so
-its end is pushed into the following day - without that, every 22:00-06:00 shift
-reports zero overlap against everything.
-
-**Overlap policy as a seam.** The 30/0 minute rule was two inline ternaries. It
-is now a named policy built from a registry (`domain/overlapPolicy.js`). A
-customer with a 15 minute handover changes an env var; a customer with a rule
-that depends on ward, travel time or nurse grade registers a policy and injects
-it into `ShiftService`. That is the one extension point this exercise actually
-implies, so it is the only one built.
-
-**Pagination is a correctness concern here, not a nicety.** Question 5 pairs
-every nurse with every job of their type. On a 50,000-nurse dataset the
-unpaginated query takes about **93 seconds**; adding the missing indexes only
-brings it to about 80 seconds, because the cost is the join itself. Taking a
-50-nurse page **inside** the query - a CTE with `LIMIT`/`OFFSET` ahead of the
-join - brings it to about **0.31 seconds**. Slicing the result afterwards would
-have changed nothing. Measurements and method in
-[docs/benchmarks.md](docs/benchmarks.md).
-
-**Indexes.** PostgreSQL indexes primary keys but not foreign key columns, and
-the original schema indexed none of the join columns. Question 6 went from
-8.8 ms to 0.3 ms once they existed. The same migration adds the foreign keys the
-schema was missing, so `nurse_hired_jobs` can no longer reference a nurse or job
-that does not exist.
-
-**Aggregates stay in SQL.** `count()` and `sum()` return `bigint`, which reaches
-JSON as a _string_. The original converted one such column with `parseInt` in a
-loop and missed the other, so `/q5` returned `total_remaining_jobs` as a number
-and `remaining_spots` as `"2"`. Both are now cast to `int` in the query, where
-the type belongs.
-
-**Errors in one place.** Every handler is wrapped so a rejected promise reaches
-a single error middleware. Known failures carry their status on an `AppError`;
-anything unexpected becomes a flat 500, because the original returned
-`err.message` verbatim and leaked Prisma internals and column names to callers.
-
-## Limitations
+## Known gaps
 
 - **The original brief is not in the repository.** The endpoints are named after
-  questions 1, 4, 5 and 6; there is no trace of questions 2 and 3, which were
-  most likely the schema and the data load that `prisma/migrations` already
-  covers. That is an inference, not a fact.
-- **No authentication or authorisation.** Every endpoint is public. The client
-  previously set an `x-auth-token` header from `localStorage` at import time,
-  which was always `null` and which no server route has ever read; it has been
-  removed rather than half-implemented.
-- **No write endpoints.** Shifts, jobs and hires are loaded by the seed or by
-  migrations. There is no way to create or edit a roster through the API.
-- **Overlap is pairwise.** The API compares two shifts at a time. It does not
-  detect a conflict across a whole roster, which would want an interval tree or
-  a `tstzrange` exclusion constraint rather than an endpoint.
+  questions 1, 4, 5 and 6; there is no trace of 2 and 3, which were most likely
+  the schema and the data load that `prisma/migrations` already covers. An
+  inference, not a fact.
+- **No authentication or authorisation.** Every endpoint is public.
+- **No write endpoints.** Shifts, jobs and hires arrive via migrations or the
+  seed. There is no way to create or edit a roster through the API.
+- **Overlap is pairwise.** The API compares two shifts. It does not sweep a
+  whole roster for conflicts, which would want an interval tree or a `tstzrange`
+  exclusion constraint rather than an endpoint.
 - **Shifts have no timezone.** `shift_date` plus a local `TIME` is ambiguous
-  across daylight-saving transitions. Storing `tstzrange` would fix it and would
-  change the schema the brief supplied.
-- **`GET /api/v1/q6` is not paginated.** Its result is bounded by the size of one
-  nurse's facilities, but a nurse attached to very many facilities would return a
-  large response.
+  across daylight-saving transitions. `tstzrange` would fix it and would change
+  the schema the brief supplied.
+- **`GET /api/v1/q6` is not paginated.** Its result is bounded by one nurse's
+  facilities, but a nurse attached to very many would return a large response.
 - **`OFFSET` pagination degrades on deep pages.** Fine at this scale; keyset
-  pagination would be the fix if it ever mattered.
-- **The Docker images have not been built.** The `Dockerfile`s and
-  `docker-compose.yml` are written to a normal standard - multi-stage, non-root
-  runtime users, healthchecks - and `docker compose config` parses cleanly, but
-  no image has been built or booted in this environment.
-- **All data in the repository is synthetic.** `prisma/seed.js` contains invented
-  facilities and single first names. There is no real patient, nurse or facility
-  information anywhere in the tree or its history.
+  pagination is the fix if it ever matters.
+- **The Docker images have not been built here.** `Dockerfile`,
+  `client/Dockerfile` and `docker-compose.yml` are written to a normal standard
+  — multi-stage, non-root runtime users, healthchecks — and `docker compose
+  config` parses cleanly, but no image has been built or booted in this
+  environment.
+- **All data in the repository is synthetic.** `prisma/seed.js` holds three
+  invented facilities and seven first names. There is no real patient, nurse or
+  facility information anywhere in the tree.
